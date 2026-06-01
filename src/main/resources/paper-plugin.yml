@@ -1,0 +1,4 @@
+name: Jinro
+version: '1.0-SNAPSHOT'
+main: com.eastcompany.eastsub.jinro.Jinro
+api-version: '1.21'
