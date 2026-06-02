@@ -1,6 +1,5 @@
 package com.eastcompany.eastsub.jinro.game
 
-import Role
 import org.bukkit.OfflinePlayer
 import java.util.UUID
 
@@ -21,7 +20,10 @@ data class GamePlayer(
     var abilityStatus: AbilityStatus = AbilityStatus.AVAILABLE,
 
     // 恋人フラグ（追加！）
-    var isLovers: Boolean = false
+    var isLovers: Boolean = false,
+
+    //裁判官後任フラグ
+    var isSaiban: Boolean = false
 ) {
     // 便利なショートカットプロパティ
     val uuid: UUID = offlinePlayer.uniqueId

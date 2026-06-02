@@ -45,3 +45,16 @@ tasks.processResources {
         expand(props)
     }
 }
+
+tasks.register<Copy>("copyJar") {
+    // shadowJarタスクで作られたファイルを取得
+    from(tasks.shadowJar.get().archiveFile)
+
+    // 指定のプラグインフォルダへ
+    into("C:/Users/tanak/Minecraft/MC_Server/plugins")
+}
+
+// buildタスクが終わったら自動で実行されるようにする
+tasks.build {
+    finalizedBy("copyJar")
+}
