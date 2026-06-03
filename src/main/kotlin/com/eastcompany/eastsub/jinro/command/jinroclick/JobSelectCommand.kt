@@ -35,7 +35,12 @@ class JobSelectCommand : SubCommand {
                     // マップから現在の人数を取得（登録がなければ0）
                     val currentCount = config.registeredRoles[role] ?: 0
 
-                    sender.sendMessage(Component.text("====== [役職個別設定] ======", NamedTextColor.GOLD))
+                    repeat(15) {
+                        sender.sendMessage(Component.text(""))
+                    }
+
+
+                    sender.sendMessage(Component.text("\uF004\n", NamedTextColor.GRAY))
                     sender.sendMessage(Component.text("設定中: ${role.roleName} (${role.englishName})", NamedTextColor.YELLOW))
 
                     // 最大人数 < X人 > のUIを組み立て
@@ -50,12 +55,11 @@ class JobSelectCommand : SubCommand {
                     sender.sendMessage(Component.text(""))
 
                     // 戻るボタン
-                    val backBtn = Component.text("[ 役職一覧に戻る ]", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.UNDERLINED, true)
+                    val backButton = Component.text()
+                        .append(Component.text("\n\uF003"))
                         .clickEvent(ClickEvent.runCommand("/jinroclick job"))
-                    sender.sendMessage(backBtn)
 
-                    sender.sendMessage(Component.text("============================", NamedTextColor.GOLD))
+                    sender.sendMessage(backButton)
                     1
                 }
             )

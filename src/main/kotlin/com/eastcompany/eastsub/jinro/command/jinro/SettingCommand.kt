@@ -7,7 +7,6 @@ import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.format.NamedTextColor
-import net.kyori.adventure.text.format.TextDecoration
 
 class SettingCommand : SubCommand {
     override val name: String = "setting"
@@ -17,34 +16,51 @@ class SettingCommand : SubCommand {
             .executes { context ->
                 val sender = context.source.sender
 
-                // ヘッダーメッセージ
-                sender.sendMessage(Component.text("====== [人狼ゲーム設定] ======", NamedTextColor.GOLD))
+                repeat(11) {
+                    sender.sendMessage(Component.text(""))
+                }
 
-                // 「・設定」はただのテキスト
-                val titleText = Component.text("・設定", NamedTextColor.YELLOW)
 
-                // 各種設定ボタン（ホバーイベントを削除）
-                val jobBtn = createClickableMenu("  役職設定", "/jinroclick job")
-                val shopBtn = createClickableMenu("  ショップ設定", "/jinroclick shop")
-                val otherBtn = createClickableMenu("  その他の設定", "/jinroclick other")
+                val titleText = Component.text("\uF002\n")
+
+                sender.sendMessage("\n")
+
+                // 各種設定ボタン
+                val mapBtn = createClickableMenu("\uF020", "/jinro map", null)
+                val jobBtn = createClickableMenu("\uF004", "/jinroclick job", null)
+                val shopBtn = createClickableMenu("\uF005", "/jinroclick shop", null)
+                val otherBtn = createClickableMenu("\uF006", "/jinroclick other", null)
+
+                // ✨ 同じ行に並べるためのコンポーネント結合
+                val controlRow = Component.text("  ") // インデント
+                    .append(
+                        Component.text("[開始]", NamedTextColor.GREEN)
+                            .clickEvent(ClickEvent.runCommand("/jinro start"))
+                    )
+                    .append(Component.text(" / ", NamedTextColor.GRAY)) // 区切り（スラッシュ）
+                    .append(
+                        Component.text("[停止]", NamedTextColor.RED)
+                            .clickEvent(ClickEvent.runCommand("/jinro stop"))
+                    )
 
                 // メッセージの送信
                 sender.sendMessage(titleText)
+                sender.sendMessage(mapBtn)
                 sender.sendMessage(jobBtn)
                 sender.sendMessage(shopBtn)
                 sender.sendMessage(otherBtn)
 
-                sender.sendMessage(Component.text("============================", NamedTextColor.GOLD))
+                sender.sendMessage(Component.text("")) // 調整スペース
+
+                sender.sendMessage(controlRow) // ✨ 開始 / 停止 を1行で送信
+
+                sender.sendMessage("")
                 1
             }
     }
 
-    /**
-     * クリックするとコマンドを実行するテキストコンポーネントを生成するヘルパー関数
-     */
-    private fun createClickableMenu(text: String, command: String): Component {
-        return Component.text(text, NamedTextColor.GREEN)
-            .decoration(TextDecoration.UNDERLINED, true) // 下線を引く
-            .clickEvent(ClickEvent.runCommand(command))  // クリック時のコマンドのみ残す
+    private fun createClickableMenu(text: String, command: String, textColor: NamedTextColor?): Component {
+        return Component.text(text, textColor)
+            .clickEvent(ClickEvent.runCommand(command))
     }
 }

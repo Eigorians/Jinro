@@ -13,7 +13,8 @@ object JinroCommand {
     private val subCommands = listOf<SubCommand>(
         StartCommand(),
         StopCommand(),
-        SettingCommand()
+        SettingCommand(),
+        MapCommand()
     )
 
     fun create(): LiteralArgumentBuilder<CommandSourceStack> {

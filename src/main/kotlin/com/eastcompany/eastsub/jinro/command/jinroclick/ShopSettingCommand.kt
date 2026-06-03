@@ -27,45 +27,70 @@ class ShopSettingCommand : SubCommand {
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal(name).executes { context ->
             val sender = context.source.sender
-            val prices = plugin.configManager.gameConfig.shopPrices
+            val config = plugin.configManager.gameConfig
+            val prices = config.shopPrices
+            val defaultPrices = config.defaultShopPrices // ✨ 追加したデフォルト価格マップ
 
-            sender.sendMessage(Component.text("====== [ショップ価格設定] ======", NamedTextColor.GOLD))
+            repeat(10) {
+                sender.sendMessage(Component.text(""))
+            }
 
-            // 2項目ずつペアにして1行にまとめて出力（行数を半分に削減）
+            sender.sendMessage(Component.text("\uF005\n"))
+            // 2項目ずつペアにして1行にまとめて出力
             for (i in items.indices step 2) {
                 var row = Component.text("")
 
                 // 左側のアイテム
                 val left = items[i]
-                row = row.append(createItemPriceNode(left.first, left.second, prices[left.second] ?: 0))
+                val leftCurrent = prices[left.second] ?: 0
+                val leftDefault = defaultPrices[left.second] ?: 0
+                row = row.append(createItemPriceNode(left.first, left.second, leftCurrent, leftDefault))
 
                 // 右側のアイテム（奇数個の場合の安全対策）
                 if (i + 1 < items.size) {
                     val right = items[i + 1]
+                    val rightCurrent = prices[right.second] ?: 0
+                    val rightDefault = defaultPrices[right.second] ?: 0
                     // タブ代わりの空白を挟む
                     row = row.append(Component.text("   |   "))
-                    row = row.append(createItemPriceNode(right.first, right.second, prices[right.second] ?: 0))
+                    row = row.append(createItemPriceNode(right.first, right.second, rightCurrent, rightDefault))
                 }
 
                 sender.sendMessage(row)
             }
 
-            sender.sendMessage(Component.text("================================", NamedTextColor.GOLD))
+            // ─── 戻るボタンの追加 ───
+            // fontの指定なし ＝ default.jsonの「\uF003」をそのまま呼び出し
+            val backButton = Component.text()
+                .append(Component.text("\n\uF003"))
+                .clickEvent(ClickEvent.runCommand("/jinro setting"))
+
+            sender.sendMessage(backButton)
             1
         }
     }
 
     /**
      * 「アイテム名 < 5G >」のUIパーツを作る
+     * ✨ デフォルト値と比較して数字の色を動的に変更するロジックを組み込み
      */
-    private fun createItemPriceNode(displayName: String, key: String, currentPrice: Int): Component {
-        // 全体の幅を揃えやすくするため、全角スペースなどで位置調整しても綺麗になります
+    private fun createItemPriceNode(displayName: String, key: String, currentPrice: Int, defaultPrice: Int): Component {
         val namePadding = displayName.padEnd(8, ' ')
 
+        // ─── 💡 ご要望の色判定 ───
+        val priceColor = when {
+            currentPrice > defaultPrice -> NamedTextColor.RED       // 高いなら薄緑
+            currentPrice < defaultPrice -> NamedTextColor.GREEN // 低いならピンク
+            else -> NamedTextColor.WHITE                               // デフォルト値なら白
+        }
+
         return Component.text(namePadding, NamedTextColor.YELLOW)
+            // 左側のボタン「<」をクリックで1G下げる
             .append(Component.text("<", NamedTextColor.GREEN).decoration(TextDecoration.BOLD, true)
                 .clickEvent(ClickEvent.runCommand("/jinroclick shopchange $key down")))
-            .append(Component.text(" ${currentPrice}G ", NamedTextColor.WHITE))
+            // ✨ 中央の数字（現在の価格）の色を判定結果に置き換え
+            .append(Component.text(" ${currentPrice}G ", priceColor))
+            // 右側のボタン「>」をクリックで1G上げる
             .append(Component.text(">", NamedTextColor.GREEN).decoration(TextDecoration.BOLD, true)
                 .clickEvent(ClickEvent.runCommand("/jinroclick shopchange $key up")))
     }

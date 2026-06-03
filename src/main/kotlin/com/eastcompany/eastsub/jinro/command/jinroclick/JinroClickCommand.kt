@@ -17,7 +17,12 @@ object JinroClickCommand {
         JobSelectCommand(),    // 追加
         JobChangeCommand(),    // 追加
         ShopSettingCommand(), // ⚠️追加: /jinroclick shop
-        ShopChangeCommand()
+        ShopChangeCommand(),
+        MapCycleCommand(),
+        MapChangeClickCommand(), // ⚠️ 追加：/jinroclick mapchange
+        MapToolClickCommand(),
+        SelectClickCommand(),  // /jinroclick select [status]
+        LaunchClickCommand()
     )
 
     fun create(): LiteralArgumentBuilder<CommandSourceStack> {

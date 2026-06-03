@@ -3,6 +3,8 @@ package com.eastcompany.eastsub.jinro.command.jinroclick
 import com.eastcompany.eastsub.jinro.Jinro
 import com.eastcompany.eastsub.jinro.game.Role
 import com.eastcompany.eastsub.jinro.command.jinro.SubCommand
+import com.eastcompany.eastsub.jinro.manager.JinroGameManager       // ✨ 修正：新マネージャーに変更
+import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
@@ -47,10 +49,14 @@ class JobChangeCommand : SubCommand {
                         config.registeredRoles = currentMap
                         manager.save()
 
+                        // ✨ 修正：JinroGameManagerのフラグを参照するように変更
+                        if (JinroGameManager.isRecruiting) {
+                            JinroScoreboardManager.displayRecruitBoard()
+                        }
+
                         // dispatchCommand を使って現在の個別設定画面を安全に再描画（連打対応）
                         val server = Bukkit.getServer()
                         server.dispatchCommand(context.source.sender, "jinroclick jobselect ${role.name}")
-
                         1
                     }
                 )

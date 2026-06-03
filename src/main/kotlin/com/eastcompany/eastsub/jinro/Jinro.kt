@@ -3,6 +3,9 @@ package com.eastcompany.eastsub.jinro
 import com.eastcompany.eastsub.jinro.command.jinro.JinroCommand
 import com.eastcompany.eastsub.jinro.command.jinroclick.JinroClickCommand
 import com.eastcompany.eastsub.jinro.config.JinroConfigManager
+import com.eastcompany.eastsub.jinro.listener.MapToolListener
+import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
+import com.eastcompany.eastsub.jinro.task.ToolParticleTask
 import io.papermc.paper.command.brigadier.Commands
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.plugin.java.JavaPlugin
@@ -12,13 +15,16 @@ class Jinro : JavaPlugin() {
     lateinit var configManager: JinroConfigManager
         private set
 
+    lateinit var toolParticleTask: ToolParticleTask
+        private set
+
     override fun onEnable() {
         // 先にConfigManagerを初期化
         configManager = JinroConfigManager(this)
 
         val manager = this.lifecycleManager
 
-        // コマンド登録のイベントハンドラ（1つに集約）
+        // コマンド登録のイベントハンドラ
         manager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val commands: Commands = event.registrar()
 
@@ -34,9 +40,21 @@ class Jinro : JavaPlugin() {
                 "UIクリックイベント処理用コマンド"
             )
         }
+
+        // 先にタスクをインスタンス化
+        toolParticleTask = ToolParticleTask(this)
+        // 5ティック（0.25秒）毎にパーティクル表示をスキャン実行
+        toolParticleTask.runTaskTimer(this, 0L, 5L)
+
+        // リスナー関係の登録
+        server.pluginManager.registerEvents(MapToolListener(this), this)
     }
 
     override fun onDisable() {
-        // Plugin shutdown logic
+        // サーバー停止/リロード時に未消滅のプレビューエンティティを確実に全消去する
+        if (::toolParticleTask.isInitialized) {
+            toolParticleTask.clearAll()
+        }
+        JinroScoreboardManager.clearBoard()
     }
 }

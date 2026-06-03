@@ -22,64 +22,74 @@ class OtherSettingCommand : SubCommand {
                 val sender = context.source.sender
                 val config = plugin.configManager.gameConfig
 
-                sender.sendMessage(Component.text("====== [その他ゲーム設定] ======", NamedTextColor.GOLD))
+                repeat(10) {
+                    sender.sendMessage(Component.text(""))
+                }
 
-                // 【時間設定】セクション
+                sender.sendMessage(Component.text("\uF006\n", NamedTextColor.GRAY))
+
+                // ─── 【時間設定】セクション ───
                 sender.sendMessage(Component.text("【時間設定】", NamedTextColor.YELLOW))
 
+                // 初日の昼時間 (デフォルト: 60)
                 sender.sendMessage(
                     Component.text("  初日の昼時間 ")
                         .append(createArrowButton("<", "firstdaytime", "down"))
-                        .append(Component.text(" ${config.firstDayTime}秒 ", NamedTextColor.WHITE))
+                        .append(Component.text(" ${config.firstDayTime}秒 ", getNumberColor(config.firstDayTime, 60)))
                         .append(createArrowButton(">", "firstdaytime", "up"))
-                        .append(createDefaultLabel(" (デフォルト: 60秒)")) // グレーの初期値表示
                 )
 
+                // 昼時間 (デフォルト: 180)
                 sender.sendMessage(
                     Component.text("  昼時間 ")
                         .append(createArrowButton("<", "daytime", "down"))
-                        .append(Component.text(" ${config.dayTime}秒 ", NamedTextColor.WHITE))
+                        .append(Component.text(" ${config.dayTime}秒 ", getNumberColor(config.dayTime, 180)))
                         .append(createArrowButton(">", "daytime", "up"))
-                        .append(createDefaultLabel(" (デフォルト: 180秒)")) // グレーの初期値表示
                 )
 
+                // 夜時間 (デフォルト: 60)
                 sender.sendMessage(
                     Component.text("  夜時間 ")
                         .append(createArrowButton("<", "nighttime", "down"))
-                        .append(Component.text(" ${config.nightTime}秒 ", NamedTextColor.WHITE))
+                        .append(Component.text(" ${config.nightTime}秒 ", getNumberColor(config.nightTime, 60)))
                         .append(createArrowButton(">", "nighttime", "up"))
-                        .append(createDefaultLabel(" (デフォルト: 60秒)")) // グレーの初期値表示
                 )
 
-                // 【ゲームルール設定】セクション
+                // ─── 【ゲームルール設定】セクション ───
                 sender.sendMessage(Component.text("【ゲームルール設定】", NamedTextColor.YELLOW))
+
+                // 💡 ✨ 【変更】0人のときは「なし」、1人以上のときは「X人」にテキストを分岐
+                val werewolfText = if (config.fixedWerewolfCount == 0) " なし " else " ${config.fixedWerewolfCount}人 "
+                val werewolfColor = if (config.fixedWerewolfCount == 0) NamedTextColor.GRAY else getNumberColor(config.fixedWerewolfCount, 1)
 
                 sender.sendMessage(
                     Component.text("  人狼役職の人数固定: ")
                         .append(createArrowButton("<", "werewolf", "down"))
-                        .append(Component.text(" ${config.fixedWerewolfCount}人 ", NamedTextColor.WHITE))
+                        .append(Component.text(werewolfText, werewolfColor))
                         .append(createArrowButton(">", "werewolf", "up"))
-                        .append(createDefaultLabel(" (デフォルト: 1人)")) // グレーの初期値表示
                 )
 
+                // 現在のマップ (デフォルト: "ノーマル")
+                val mapColor = if (config.selectedMap == "ノーマル") NamedTextColor.WHITE else NamedTextColor.GREEN
                 sender.sendMessage(
-                    Component.text("  フィールド ")
+                    Component.text("  現在のマップ: ")
                         .append(Component.text("[ ", NamedTextColor.GRAY))
-                        .append(Component.text(config.fieldType, NamedTextColor.GREEN)
+                        .append(Component.text(config.selectedMap, mapColor)
                             .decoration(TextDecoration.UNDERLINED, true)
-                            .clickEvent(ClickEvent.runCommand("/jinroclick change field cycle")))
+                            .clickEvent(ClickEvent.runCommand("/jinroclick mapcycle")))
                         .append(Component.text(" ]", NamedTextColor.GRAY))
-                        .append(createDefaultLabel(" (デフォルト: default)")) // グレーの初期値表示
                 )
 
-                sender.sendMessage(Component.text("================================", NamedTextColor.GOLD))
+                // ─── 戻るボタン ───
+                val backButton = Component.text()
+                    .append(Component.text("\n\uF003"))
+                    .clickEvent(ClickEvent.runCommand("/jinro setting"))
+
+                sender.sendMessage(backButton)
                 1
             }
     }
 
-    /**
-     * < や > の形をした、数値を増減させるためのクリックボタンを生成する
-     */
     private fun createArrowButton(label: String, key: String, action: String): Component {
         return Component.text(label, NamedTextColor.GREEN)
             .decoration(TextDecoration.BOLD, true)
@@ -87,9 +97,13 @@ class OtherSettingCommand : SubCommand {
     }
 
     /**
-     * 右側に表示するデフォルト値のグレーテキストを生成するヘルパー関数
+     * 数値がデフォルト値より高いか、低いか、同じかによって適切な文字色を返す
      */
-    private fun createDefaultLabel(text: String): Component {
-        return Component.text(text, NamedTextColor.GRAY)
+    private fun getNumberColor(current: Int, default: Int): NamedTextColor {
+        return when {
+            current > default -> NamedTextColor.RED
+            current < default -> NamedTextColor.GREEN
+            else -> NamedTextColor.WHITE
+        }
     }
 }
