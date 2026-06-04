@@ -1,205 +1,178 @@
 package com.eastcompany.eastsub.jinro.manager
 
 import com.eastcompany.eastsub.jinro.Jinro
-import com.eastcompany.eastsub.jinro.config.MapData
+import com.eastcompany.eastsub.jinro.game.Camp
+import com.eastcompany.eastsub.jinro.game.GameEndChecker
+import com.eastcompany.eastsub.jinro.game.GamePlayer
+import com.eastcompany.eastsub.jinro.game.Role
+import com.eastcompany.eastsub.jinro.item.RoleBookManager
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
-import org.bukkit.Location
 import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitRunnable
+import java.time.Duration
 import java.util.UUID
 
 object JinroGameManager {
     private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
-    private var countdownTask: BukkitRunnable? = null
 
-    // announce.json を指定するフォントキー
-    private val announceFont = Key.key("minecraft:announce")
+    private val role_view = Key.key("minecraft:role_view")
 
-    // 募集中の主催者（開始ボタンを押せる人）
-    var hostUniqueId: UUID? = null
+    // ─── 🎮 オンライン中かつ参加中のGamePlayerデータを責任持って保持するマップ ───
+    val gamePlayers = mutableMapOf<UUID, GamePlayer>()
 
-    // ─── 👥 プレイヤー状態の内部保持 ───
-    private val rawParticipants = mutableSetOf<UUID>()
-    private val rawSpectators = mutableSetOf<UUID>()
-    private val rawNonParticipants = mutableSetOf<UUID>()
+    // 観戦中かつオンラインのプレイヤーUUIDを保持するセット
+    val activeSpectators = mutableSetOf<UUID>()
 
-    // ─── 💡 オンライン中のプレイヤーのみをフィルタリングして取得するプロパティ ───
-    val participants: Set<UUID>
-        get() = rawParticipants.filter { Bukkit.getPlayer(it)?.isOnline == true }.toSet()
-
-    val spectators: Set<UUID>
-        get() = rawSpectators.filter { Bukkit.getPlayer(it)?.isOnline == true }.toSet()
-
-    val nonParticipants: Set<UUID>
-        get() = rawNonParticipants.filter { Bukkit.getPlayer(it)?.isOnline == true }.toSet()
-
-    // 状態フラグ
-    var isRecruiting = false
     var isGameRunning = false
 
     /**
-     * 内部リストへの追加・削除用関数
+     * MatchManagerの15秒カウントダウン終了時に呼び出される、ゲーム本編の起動メソッド
      */
-    fun addParticipant(uuid: UUID) = rawParticipants.add(uuid)
-    fun addSpectator(uuid: UUID) = rawSpectators.add(uuid)
-    fun addNonParticipant(uuid: UUID) = rawNonParticipants.add(uuid)
+    fun startGame(finalParticipants: Set<UUID>, finalSpectators: Set<UUID>) {
+        isGameRunning = true
+        gamePlayers.clear()
+        activeSpectators.clear()
 
-    fun removeFromAllLists(uuid: UUID) {
-        rawParticipants.remove(uuid)
-        rawSpectators.remove(uuid)
-        rawNonParticipants.remove(uuid)
-    }
+        // 1. 参加者のデータをオンライン判定の上、GamePlayerマップにコンバート＆保持
+        finalParticipants.forEach { uuid ->
+            val player = Bukkit.getPlayer(uuid)
+            if (player != null && player.isOnline) {
+                val gamePlayer = GamePlayer(offlinePlayer = player, role = Role.VILLAGER)
+                gamePlayer.resetState() // インベントリクリア、体力満腹度最大、アドベンチャーモード化
+                gamePlayers[uuid] = gamePlayer
+            }
+        }
 
-    /**
-     * 現在サーバーにいる「不参加」以外の有効なオンラインプレイヤーの総数を計算
-     */
-    fun getTotalRelevantPlayers(): Int {
-        val onlineIds = Bukkit.getOnlinePlayers().map { it.uniqueId }.toSet()
-        val activePlayers = onlineIds - nonParticipants
-        return activePlayers.size
-    }
+        // 2. 観戦者のデータをオンライン判定の上、保持
+        finalSpectators.forEach { uuid ->
+            val player = Bukkit.getPlayer(uuid)
+            if (player != null && player.isOnline) {
+                activeSpectators.add(uuid)
+            }
+        }
 
-    /**
-     * 15秒のカウントダウンを開始する（事前の安全チェックとロビーテレポート含む）
-     */
-    fun startCountdown() {
-        val configManager = plugin.configManager
-        val config = configManager.gameConfig
-        val selectedMapName = config.selectedMap
-        val mapData = config.mapData[selectedMapName]
+        // 3. 役職をプレイヤーたちへ抽選・配布する
+        JinroRoleManager.distributeRoles(gamePlayers)
 
-        // ─── 🛡️ 1. マップロケーションの完全性チェック ───
-        if (mapData == null || !isMapDataValid(mapData)) {
-            val host = hostUniqueId?.let { Bukkit.getPlayer(it) }
-            val errorMsg = Component.text("❌ マップ「$selectedMapName」の設定（ロビー、スポーン、ショップ、裁判所）が不完全なため、ゲームを開始できません。", NamedTextColor.RED)
+        // ─── 🛡️ 開始直前の終了条件チェック（誤爆・事故防止） ───
+        val endChecker = GameEndChecker(this)
+        val initialWinners = endChecker.checkGameEnd()
 
-            host?.sendMessage(errorMsg) ?: Bukkit.broadcast(errorMsg)
+        if (initialWinners.isNotEmpty()) {
+            isGameRunning = false
+            gamePlayers.clear()
+            activeSpectators.clear()
+
+            broadcastMessage(
+                Component.text("❌ 【ゲーム開始エラー】設定された役職のバランス、または参加人数が原因で、開始時点で終了条件を満たしているため強制終了しました。設定を見直してください。", NamedTextColor.RED, TextDecoration.BOLD)
+            )
             return
         }
 
-        // 募集受付を終了
-        isRecruiting = false
-        countdownTask?.cancel()
+        // ─── 🚀 ここから本番のゲーム開始シーケンス ───
 
-        // ─── 🚀 2. オンライン中かつ参加・観戦のプレイヤーをロビーへ即座にテレポート ───
-        val lobbyLocation = parseLocation(mapData.lobby!!)
-        if (lobbyLocation != null) {
-            // getterを介してオンライン中のプレイヤーのみにテレポートを実行
-            (participants + spectators).forEach { uuid ->
-                Bukkit.getPlayer(uuid)?.teleport(lobbyLocation)
-            }
-        }
+        // 4. 🚨 分散テレポートクラスを呼び出し
+        JinroTeleportManager.teleportPlayersToGamePositions()
 
-        broadcastMessage(Component.text("まもなくゲームが開始されます！ (残り 15 秒)", NamedTextColor.GREEN))
+        // 📖 全参加プレイヤーに役職図鑑を配布する
+        giveRoleBookToPlayers()
 
-        // ─── ⏳ 3. カウントダウンタスク開始 ───
-        countdownTask = object : BukkitRunnable() {
-            var timeLeft = 15
+        // 5. リソースパックを100%活かした全画面の役職決定演出を叩き込む
+        sendRoleAssignmentTitles()
 
-            override fun run() {
-                timeLeft--
-
-                // 通常のチャット通知 (10秒、5秒、4秒)
-                if (timeLeft == 10 || timeLeft == 5 || timeLeft == 4) {
-                    broadcastMessage(
-                        Component.text("ゲーム開始まであと ", NamedTextColor.YELLOW)
-                            .append(Component.text(timeLeft, NamedTextColor.RED, TextDecoration.BOLD))
-                            .append(Component.text(" 秒", NamedTextColor.YELLOW))
-                    )
-                }
-
-                // 残り3秒から大画面フォントを画面中央に叩き込む！
-                when (timeLeft) {
-                    3 -> sendCountdownTitle("\uE009") // countdown_3.png
-                    2 -> sendCountdownTitle("\uE008") // countdown_2.png
-                    1 -> sendCountdownTitle("\uE007") // countdown_1.png
-                }
-
-                // 0秒になったら終了してゲーム本編を始動
-                if (timeLeft <= 0) {
-                    cancel()
-                    countdownTask = null
-                    transitionToGame()
-                }
-            }
-        }
-        countdownTask?.runTaskTimer(plugin, 20L, 20L)
-    }
-
-    private fun isMapDataValid(data: MapData): Boolean {
-        return !data.lobby.isNullOrBlank() &&
-                data.spawns.isNotEmpty() &&
-                data.shops.isNotEmpty() &&
-                !data.court.isNullOrBlank()
-    }
-
-    private fun parseLocation(locStr: String): Location? {
-        return runCatching {
-            val parts = locStr.split(",")
-            val world = Bukkit.getWorld(parts[0]) ?: return null
-            Location(
-                world,
-                parts[1].toDouble(),
-                parts[2].toDouble(),
-                parts[3].toDouble(),
-                parts.getOrNull(4)?.toFloat() ?: 0f,
-                parts.getOrNull(5)?.toFloat() ?: 0f
-            )
-        }.getOrNull()
-    }
-
-    /**
-     * 画面中央にリソースパックのデカ文字フォントを送信する
-     */
-    private fun sendCountdownTitle(character: String) {
-        val titleComponent = Component.text(character).font(announceFont)
-        val title = Title.title(titleComponent, Component.empty())
-
-        for (player in Bukkit.getOnlinePlayers()) {
-            val uuid = player.uniqueId
-            if (!nonParticipants.contains(uuid)) {
-                player.showTitle(title)
-            }
-        }
-    }
-
-    private fun transitionToGame() {
-        isGameRunning = true
-
+        // 6. 全画面一斉ゲーム開始アナウンス
         broadcastMessage(Component.text("================================", NamedTextColor.GOLD))
         broadcastMessage(Component.text("       人狼ゲームが開始されました！       ", NamedTextColor.RED, TextDecoration.BOLD))
         broadcastMessage(Component.text("================================", NamedTextColor.GOLD))
 
-        // オンライン中の参加者のみにゲーム開始メッセージを送信
-        participants.forEach { uuid ->
-            val player = Bukkit.getPlayer(uuid) ?: return@forEach
-            player.sendMessage(Component.text("あなたは「プレイヤー」としてゲームに参加します。", NamedTextColor.GREEN))
+        // 各自への役割通知
+        gamePlayers.values.forEach { gPlayer ->
+            gPlayer.offlinePlayer.player?.sendMessage(
+                Component.text("あなたは「プレイヤー」としてゲームに参加します。周りを警戒してください。", NamedTextColor.GREEN)
+            )
         }
 
-        // オンライン中の観戦者のみにメッセージを送信
-        spectators.forEach { uuid ->
-            val player = Bukkit.getPlayer(uuid) ?: return@forEach
-            player.sendMessage(Component.text("あなたは「観戦者」としてゲームを視聴します。", NamedTextColor.YELLOW))
+        activeSpectators.forEach { uuid ->
+            Bukkit.getPlayer(uuid)?.sendMessage(
+                Component.text("あなたは「観戦者」としてゲームを視聴します。", NamedTextColor.YELLOW)
+            )
+        }
+
+        // 💡 5秒間の役職確認演出（Title）が終わるタイミングを見計らって本編タイマーを起動
+        object : BukkitRunnable() {
+            override fun run() {
+                if (!isGameRunning) return
+
+                // 💡 ✨【変更】時間管理クラス（JinroTimeManager）を呼び出し、1日目の朝のBossBarとカウントダウンをスタート
+                JinroTimeManager.startTimer()
+            }
+        }.runTaskLater(plugin, 100L) // 5秒後 (100 ticks) に実行
+    }
+
+    /**
+     * 💡 参加プレイヤー全員のインベントリに役職図鑑を配布
+     */
+    private fun giveRoleBookToPlayers() {
+        gamePlayers.values.forEach { gPlayer ->
+            val player = gPlayer.offlinePlayer.player ?: return@forEach
+
+            val personalRoleBook = RoleBookManager.createRoleBook(gPlayer.role)
+
+            player.inventory.addItem(personalRoleBook)
         }
     }
 
     /**
-     * 全ステータスをリセットする
+     * 設定された role_view のデカ文字ロゴをタイトル表示し、
+     * さらに sounds.json で定義された陣営専用のカスタムサウンドを再生する
+     */
+    private fun sendRoleAssignmentTitles() {
+        val times = Title.Times.times(
+            Duration.ofMillis(500),
+            Duration.ofMillis(4000),
+            Duration.ofMillis(500)
+        )
+
+        gamePlayers.values.forEach { gPlayer ->
+            val player = gPlayer.offlinePlayer.player ?: return@forEach
+
+            // ─── 1. タイトル表示処理 ───
+            val mainTitleComponent = Component.text("\uE000").font(role_view)
+            val subTitleComponent = Component.text(gPlayer.role.role_view).font(role_view)
+
+            val combinedTitle = Title.title(mainTitleComponent, subTitleComponent, times)
+            player.showTitle(combinedTitle)
+
+            // ─── 2. 陣営サウンド再生処理 (sounds.json依存) ───
+            val camp = gPlayer.role.camp
+            val soundKey = net.kyori.adventure.key.Key.key(camp.soundName)
+
+            val campSound = net.kyori.adventure.sound.Sound.sound(
+                soundKey,
+                net.kyori.adventure.sound.Sound.Source.MASTER,
+                1.0f,
+                1.0f
+            )
+
+            player.playSound(campSound)
+        }
+    }
+
+    /**
+     * ゲーム終了時、または強制停止時の完全初期化リセット
      */
     fun reset() {
-        countdownTask?.cancel()
-        countdownTask = null
-        hostUniqueId = null
-        rawParticipants.clear()
-        rawSpectators.clear()
-        rawNonParticipants.clear()
-        isRecruiting = false
+        gamePlayers.clear()
+        activeSpectators.clear()
         isGameRunning = false
+
+        // 💡 ✨【追加】ゲーム停止時にBossBarや進行中のタイマータスクも完全に破棄・クリアする
+        JinroTimeManager.stopTimer()
     }
 
     private fun broadcastMessage(component: Component) {

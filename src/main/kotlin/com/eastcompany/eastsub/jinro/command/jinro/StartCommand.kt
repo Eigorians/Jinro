@@ -1,9 +1,9 @@
 package com.eastcompany.eastsub.jinro.command.jinro
 
 import com.eastcompany.eastsub.jinro.Jinro
-import com.eastcompany.eastsub.jinro.manager.JinroMatchManager
+import com.eastcompany.eastsub.jinro.manager.JinroMatchManager  // ✨ カウントダウンまではこっち
+import com.eastcompany.eastsub.jinro.manager.JinroGameManager   // ✨ ゲーム中の重複防止チェック用
 import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
-import com.eastcompany.eastsub.jinro.manager.JinroGameManager // ✨ 追加
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
@@ -29,28 +29,25 @@ class StartCommand : SubCommand {
                     return@executes 1
                 }
 
-                // 💡 ✨ 【変更】既に募集中なら、実際のゲーム開始シーケンス（15秒カウントダウン）へ移行
-                // 旧: if (JinroMatchManager.isRecruiting)
-                if (JinroGameManager.isRecruiting) {
-                    if (JinroGameManager.hostUniqueId != sender.uniqueId) {
-                        sender.sendMessage(Component.text("募集を開始したホストのみがゲームをスタートできます。", NamedTextColor.RED))
-                        return@executes 1
-                    }
-                    JinroGameManager.startCountdown() // ✨ GameManagerのカウントダウンを起動
-                    return@executes 1
-                }
-
-// 初期化部分もGameManagerに変更
-                JinroGameManager.reset()
-                JinroGameManager.isRecruiting = true
-                JinroGameManager.hostUniqueId = sender.uniqueId
-
+                // 💡 1. 既に本編ゲームが走っている場合は重複起動をブロック
                 if (JinroGameManager.isGameRunning) {
                     sender.sendMessage(Component.text("既にゲームは進行中です。", NamedTextColor.RED))
                     return@executes 1
                 }
 
-                // ─── 初回実行時：募集フェーズの初期化 ───
+                // 💡 2. 既に募集中なら、15秒カウントダウンシーケンス（MatchManager側）へ移行
+                if (JinroMatchManager.isRecruiting) {
+                    if (JinroMatchManager.hostUniqueId != sender.uniqueId) {
+                        sender.sendMessage(Component.text("募集を開始したホストのみがゲームをスタートできます。", NamedTextColor.RED))
+                        return@executes 1
+                    }
+
+                    // MatchManagerのカウントダウンを起動！（0秒になると自動でGameManagerへバトンタッチします）
+                    JinroMatchManager.startCountdown()
+                    return@executes 1
+                }
+
+                // ─── 3. 初回実行時：募集フェーズの初期化（MatchManager） ───
                 JinroMatchManager.reset()
                 JinroMatchManager.isRecruiting = true
                 JinroMatchManager.hostUniqueId = sender.uniqueId

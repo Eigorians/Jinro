@@ -50,7 +50,7 @@ class JobChangeCommand : SubCommand {
                         manager.save()
 
                         // ✨ 修正：JinroGameManagerのフラグを参照するように変更
-                        if (JinroGameManager.isRecruiting) {
+                        if (JinroGameManager.isGameRunning) {
                             JinroScoreboardManager.displayRecruitBoard()
                         }
 

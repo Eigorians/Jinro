@@ -1,4 +1,4 @@
-package com.eastcompany.eastsub.jinro.task
+package com.eastcompany.eastsub.jinro.listener.task
 
 import com.eastcompany.eastsub.jinro.Jinro
 import org.bukkit.Bukkit
