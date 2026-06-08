@@ -2,19 +2,17 @@ package com.eastcompany.eastsub.jinro.manager
 
 import com.eastcompany.eastsub.jinro.Jinro
 import com.eastcompany.eastsub.jinro.game.Role
-import com.eastcompany.eastsub.jinro.game.Camp
 import io.papermc.paper.scoreboard.numbers.NumberFormat
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
-import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scoreboard.Criteria
 import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Objective
 
 object JinroScoreboardManager {
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
     private val sidebarFont = Key.key("minecraft:role_sidebar")
     private const val OBJECTIVE_NAME = "jinro_recruit"
 
@@ -33,13 +31,12 @@ object JinroScoreboardManager {
         val objective: Objective = board.registerNewObjective(
             OBJECTIVE_NAME,
             Criteria.DUMMY,
-            Component.text("役職", NamedTextColor.GOLD)
+            Component.text("\uE503", NamedTextColor.GOLD)
         )
         objective.displaySlot = DisplaySlot.SIDEBAR
 
         // ─── ✨ 修正：Role Enumの記載順（ordinal）にソート ───
         val activeRoles = Role.entries
-            .filter { it != Role.BACKSLIDER }
             .filter { (registeredRoles[it] ?: 0) > 0 }
             .sortedBy { it.ordinal } // 💡 これでEnumの定義順（上から順）になります
 

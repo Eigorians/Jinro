@@ -1,9 +1,9 @@
 package com.eastcompany.eastsub.jinro.command.jinroclick
 
 import com.eastcompany.eastsub.jinro.Jinro
-import com.eastcompany.eastsub.jinro.game.Role
-import com.eastcompany.eastsub.jinro.game.Camp
 import com.eastcompany.eastsub.jinro.command.jinro.SubCommand
+import com.eastcompany.eastsub.jinro.game.Camp
+import com.eastcompany.eastsub.jinro.game.Role
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
@@ -11,11 +11,10 @@ import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.format.NamedTextColor
-import org.bukkit.plugin.java.JavaPlugin
 
 class JobSettingCommand : SubCommand {
     override val name: String = "job"
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
     private val sidebarFont = Key.key("minecraft:role_sidebar")
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
@@ -30,12 +29,12 @@ class JobSettingCommand : SubCommand {
             sender.sendMessage(Component.text("\uF004\n"))
 
             // ─── グループ定義（背徳者と村人を除外） ───
-            val selectableRoles = Role.entries.filter { it != Role.BACKSLIDER && it != Role.VILLAGER }
+            val selectableRoles = Role.entries.filter { it != Role.MURABITO }
 
             val groups = listOf(
                 GroupData(Camp.VILLAGER, "村人陣営", NamedTextColor.GREEN, selectableRoles.filter { it.camp == Camp.VILLAGER }),
-                GroupData(Camp.WEREWOLF, "人狼陣営", NamedTextColor.RED, selectableRoles.filter { it.camp == Camp.WEREWOLF || it.camp == Camp.MADMAN }),
-                GroupData(Camp.GRIM_REAPER, "第三陣営", NamedTextColor.LIGHT_PURPLE, selectableRoles.filter { it.camp != Camp.VILLAGER && it.camp != Camp.WEREWOLF && it.camp != Camp.MADMAN })
+                GroupData(Camp.JINRO, "人狼陣営", NamedTextColor.RED, selectableRoles.filter { it.camp == Camp.JINRO || it.camp == Camp.KYOJIN }),
+                GroupData(Camp.GRIM_REAPER, "第三陣営", NamedTextColor.LIGHT_PURPLE, selectableRoles.filter { it.camp != Camp.VILLAGER && it.camp != Camp.JINRO && it.camp != Camp.KYOJIN })
             )
 
             // ─── グループごとに描画 ───

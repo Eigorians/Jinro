@@ -3,11 +3,14 @@ package com.eastcompany.eastsub.jinro
 import com.eastcompany.eastsub.jinro.command.jinro.JinroCommand
 import com.eastcompany.eastsub.jinro.command.jinroclick.JinroClickCommand
 import com.eastcompany.eastsub.jinro.config.JinroConfigManager
+import com.eastcompany.eastsub.jinro.config.RoleConfigManager
+import com.eastcompany.eastsub.jinro.item.job.SpecialItemManager
+import com.eastcompany.eastsub.jinro.item.shop.CustomItemListener
 import com.eastcompany.eastsub.jinro.listener.MapToolListener
-import com.eastcompany.eastsub.jinro.manager.JinroGameManager    // ✨ 追加
-import com.eastcompany.eastsub.jinro.manager.JinroMatchManager   // ✨ 追加
-import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
 import com.eastcompany.eastsub.jinro.listener.task.ToolParticleTask
+import com.eastcompany.eastsub.jinro.manager.JinroGameManager
+import com.eastcompany.eastsub.jinro.manager.JinroMatchManager
+import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
 import io.papermc.paper.command.brigadier.Commands
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.plugin.java.JavaPlugin
@@ -20,12 +23,25 @@ class Jinro : JavaPlugin() {
     lateinit var toolParticleTask: ToolParticleTask
         private set
 
+    lateinit var itemManager: SpecialItemManager
+        private set
+
+    companion object {
+        lateinit var instance: Jinro
+            private set
+    }
+
+    lateinit var roleConfigManager: RoleConfigManager
+        private set
+
     override fun onEnable() {
         // 先にConfigManagerを初期化
+        instance = this
+
         configManager = JinroConfigManager(this)
 
         val manager = this.lifecycleManager
-
+        roleConfigManager = RoleConfigManager(this)
         // コマンド登録のイベントハンドラ
         manager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val commands: Commands = event.registrar()
@@ -50,6 +66,11 @@ class Jinro : JavaPlugin() {
 
         // リスナー関係の登録
         server.pluginManager.registerEvents(MapToolListener(this), this)
+
+        server.pluginManager.registerEvents(CustomItemListener(), this)
+
+        itemManager = SpecialItemManager(this)
+        server.pluginManager.registerEvents(itemManager, this)
     }
 
     override fun onDisable() {
@@ -60,6 +81,8 @@ class Jinro : JavaPlugin() {
 
         // サーバー停止/リロード時に未消滅のプレビューエンティティを確実に全消去する
         if (::toolParticleTask.isInitialized) {
+            toolParticleTask.cancel()
+            // 2. その後に全削除
             toolParticleTask.clearAll()
         }
 

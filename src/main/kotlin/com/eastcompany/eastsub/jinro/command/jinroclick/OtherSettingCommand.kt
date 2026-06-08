@@ -9,12 +9,11 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
-import org.bukkit.plugin.java.JavaPlugin
 
 class OtherSettingCommand : SubCommand {
     override val name: String = "other"
 
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal(name)

@@ -3,7 +3,7 @@ package com.eastcompany.eastsub.jinro.game
 import org.bukkit.GameMode
 import org.bukkit.OfflinePlayer
 import org.bukkit.attribute.Attribute
-import java.util.UUID
+import java.util.*
 
 data class GamePlayer(
     // プレイヤー本体
@@ -19,13 +19,18 @@ data class GamePlayer(
     var isAlive: Boolean = true,
 
     // 特殊能力の使用制限フラグ
-    var abilityStatus: AbilityStatus = AbilityStatus.AVAILABLE,
+    var abilityStatus: AbilityStatus = AbilityStatus.UNAVAILABLE,
 
     // 恋人フラグ（追加！）
     var isLovers: Boolean = false,
 
     //裁判官後任フラグ
-    var isSaiban: Boolean = false
+    var isSaiban: Boolean = false,
+
+    var Kishi: Boolean = false,
+
+    var firstLoveTarget: GamePlayer? = null
+
 ) {
     // 便利なショートカットプロパティ
     val uuid: UUID = offlinePlayer.uniqueId
@@ -58,4 +63,7 @@ data class GamePlayer(
         // 5. ゲームモードをアドベンチャー（ADVENTURE）に変更
         player.gameMode = GameMode.ADVENTURE
     }
+
+    val player: org.bukkit.entity.Player?
+        get() = offlinePlayer.player
 }

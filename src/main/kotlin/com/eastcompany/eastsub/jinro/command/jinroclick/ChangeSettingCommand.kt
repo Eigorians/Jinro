@@ -9,12 +9,11 @@ import io.papermc.paper.command.brigadier.Commands
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
-import org.bukkit.plugin.java.JavaPlugin
 
 class ChangeSettingCommand : SubCommand {
     override val name: String = "change"
 
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         // メインのリテラル "change"

@@ -1,21 +1,20 @@
 package com.eastcompany.eastsub.jinro.command.jinroclick
 
 import com.eastcompany.eastsub.jinro.Jinro
-import com.eastcompany.eastsub.jinro.game.Role
 import com.eastcompany.eastsub.jinro.command.jinro.SubCommand
-import com.eastcompany.eastsub.jinro.manager.JinroGameManager       // ✨ 修正：新マネージャーに変更
+import com.eastcompany.eastsub.jinro.game.Role
+import com.eastcompany.eastsub.jinro.manager.JinroGameManager
 import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import org.bukkit.Bukkit
-import org.bukkit.plugin.java.JavaPlugin
 
 class JobChangeCommand : SubCommand {
     override val name: String = "jobchange"
 
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal(name)

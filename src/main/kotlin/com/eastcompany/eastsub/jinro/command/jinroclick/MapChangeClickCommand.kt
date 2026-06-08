@@ -7,12 +7,11 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 import org.bukkit.Bukkit
-import org.bukkit.plugin.java.JavaPlugin
 
 class MapChangeClickCommand : SubCommand {
     override val name: String = "mapchange"
 
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal(name)

@@ -9,11 +9,10 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
-import org.bukkit.plugin.java.JavaPlugin
 
 class ShopSettingCommand : SubCommand {
     override val name: String = "shop"
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     // 表示名と内部キーのペア（並び順通り）
     private val items = listOf(

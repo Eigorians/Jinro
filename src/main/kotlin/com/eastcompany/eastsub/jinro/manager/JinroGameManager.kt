@@ -1,58 +1,78 @@
 package com.eastcompany.eastsub.jinro.manager
 
 import com.eastcompany.eastsub.jinro.Jinro
-import com.eastcompany.eastsub.jinro.game.Camp
 import com.eastcompany.eastsub.jinro.game.GameEndChecker
 import com.eastcompany.eastsub.jinro.game.GamePlayer
+import com.eastcompany.eastsub.jinro.game.JinroPhase
+import com.eastcompany.eastsub.jinro.game.ResourceManager
 import com.eastcompany.eastsub.jinro.game.Role
-import com.eastcompany.eastsub.jinro.item.RoleBookManager
-import com.eastcompany.eastsub.jinro.listener.JinroPlayerListener // 💡 追加
+import com.eastcompany.eastsub.jinro.game.trap.TrapManager
+import com.eastcompany.eastsub.jinro.item.JinroInventory
+import com.eastcompany.eastsub.jinro.item.other.DummyItem
+import com.eastcompany.eastsub.jinro.item.other.RoleBookManager
+import com.eastcompany.eastsub.jinro.item.shop.ItemRegistry
+import com.eastcompany.eastsub.jinro.listener.JinroPlayerListener
+import com.eastcompany.eastsub.jinro.listener.ResourceListener // 💡 追加
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
-import org.bukkit.event.HandlerList // 💡 追加
-import org.bukkit.plugin.java.JavaPlugin
+import org.bukkit.Bukkit.broadcastMessage
+import org.bukkit.NamespacedKey
+import org.bukkit.event.HandlerList
+import org.bukkit.persistence.PersistentDataType
 import org.bukkit.scheduler.BukkitRunnable
 import java.time.Duration
-import java.util.UUID
+import java.util.*
 
 object JinroGameManager {
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     private val role_view = Key.key("minecraft:role_view")
 
-    // ─── 💡 リスナーのインスタンスを保持する変数 ───
     private var gameListener: JinroPlayerListener? = null
+    // ─── 💡 資源用リスナーのインスタンスを保持する変数を追加 ───
+    private var resourceListener: ResourceListener? = null
 
     val gamePlayers = mutableMapOf<UUID, GamePlayer>()
     val activeSpectators = mutableSetOf<UUID>()
     var isGameRunning = false
+    var trapManager: TrapManager? = null
+
+    var resourceManager: ResourceManager? = null
+
+    var currentPhase: JinroPhase = JinroPhase.FIRST_DAY
+    var currentDayCount: Int = 1
 
     fun startGame(finalParticipants: Set<UUID>, finalSpectators: Set<UUID>) {
         isGameRunning = true
+        currentPhase = JinroPhase.FIRST_DAY
+        currentDayCount = 1
         gamePlayers.clear()
         activeSpectators.clear()
 
-        // ─── 💡 1. ゲーム開始時にリスナーを動的に登録 ───
         if (gameListener == null) {
             gameListener = JinroPlayerListener()
             Bukkit.getPluginManager().registerEvents(gameListener!!, plugin)
         }
 
-        // 1. 参加者のデータをオンライン判定の上、GamePlayerマップにコンバート＆保持
+        // ─── 💡 ゲーム開始時に資源リスナーを動的に登録 ───
+        if (resourceListener == null) {
+            resourceListener = ResourceListener(plugin)
+            Bukkit.getPluginManager().registerEvents(resourceListener!!, plugin)
+        }
+
         finalParticipants.forEach { uuid ->
             val player = Bukkit.getPlayer(uuid)
             if (player != null && player.isOnline) {
-                val gamePlayer = GamePlayer(offlinePlayer = player, role = Role.VILLAGER)
+                val gamePlayer = GamePlayer(offlinePlayer = player, role = Role.MURABITO)
                 gamePlayer.resetState()
                 gamePlayers[uuid] = gamePlayer
             }
         }
 
-        // 2. 観戦者のデータをオンライン判定の上、保持
         finalSpectators.forEach { uuid ->
             val player = Bukkit.getPlayer(uuid)
             if (player != null && player.isOnline) {
@@ -60,48 +80,31 @@ object JinroGameManager {
             }
         }
 
-        // 3. 役職をプレイヤーたちへ抽選・配布する
+        // 役職配布の直後に安全チェックを実行
         JinroRoleManager.distributeRoles(gamePlayers)
 
-        // 開始直前の終了条件チェック
+        trapManager = TrapManager(plugin)
+        resourceManager = ResourceManager(plugin)
+
         val endChecker = GameEndChecker(this)
-        val initialWinners = endChecker.checkGameEnd()
 
-        if (initialWinners.isNotEmpty()) {
-            // エラー終了時も正しく初期化（リスナー解除を含む）するために reset() を呼ぶ
+        // 💡 修正: 新しい判定メソッドを呼び出す
+        if (endChecker.isInitialStateInvalid()) {
             reset()
-
             broadcastMessage(
-                Component.text("❌ 【ゲーム開始エラー】設定された役職のバランス、または参加人数が原因で、開始時点で終了条件を満たしているため強制終了しました。設定を見直してください。", NamedTextColor.RED, TextDecoration.BOLD)
+                Component.text("❌ 【ゲーム開始エラー】設定された役職のバランス、または参加人数が原因で、開始時点で終了条件を満たしているため強制終了しました。設定を見を見直してください。", NamedTextColor.RED, TextDecoration.BOLD)
             )
             return
         }
 
-        // 4. 分散テレポートクラスを呼び出し
         JinroTeleportManager.teleportPlayersToGamePositions()
 
-        // 全参加プレイヤーに役職図鑑を配布する
-        giveRoleBookToPlayers()
+        JinroTeleportManager.teleportPlayersToGamePositions()
+        ShopManager.setupShops()
+        setInventory()
+        respawnResource()
 
-        // 5. リソースパックを100%活かした全画面の役職決定演出を叩き込む
         sendRoleAssignmentTitles()
-
-        // 6. 全画面一斉ゲーム開始アナウンス
-        broadcastMessage(Component.text("================================", NamedTextColor.GOLD))
-        broadcastMessage(Component.text("       人狼ゲームが開始されました！       ", NamedTextColor.RED, TextDecoration.BOLD))
-        broadcastMessage(Component.text("================================", NamedTextColor.GOLD))
-
-        gamePlayers.values.forEach { gPlayer ->
-            gPlayer.offlinePlayer.player?.sendMessage(
-                Component.text("あなたは「プレイヤー」としてゲームに参加します。周りを警戒してください。", NamedTextColor.GREEN)
-            )
-        }
-
-        activeSpectators.forEach { uuid ->
-            Bukkit.getPlayer(uuid)?.sendMessage(
-                Component.text("あなたは「観戦者」としてゲームを視聴します。", NamedTextColor.YELLOW)
-            )
-        }
 
         object : BukkitRunnable() {
             override fun run() {
@@ -111,11 +114,24 @@ object JinroGameManager {
         }.runTaskLater(plugin, 100L)
     }
 
-    private fun giveRoleBookToPlayers() {
+    fun respawnResource (){
+        resourceManager?.spawnRandomResources(gamePlayers.size * 3)
+    }
+
+    private fun setInventory() {
         gamePlayers.values.forEach { gPlayer ->
             val player = gPlayer.offlinePlayer.player ?: return@forEach
             val personalRoleBook = RoleBookManager.createRoleBook(gPlayer.role)
-            player.inventory.addItem(personalRoleBook)
+
+            player.inventory.setItem(0, ItemRegistry.get("axe")?.create())
+            player.inventory.setItem(1, ItemRegistry.get("pickaxe")?.create())
+            // 7番と8番のスロットに固有アイテムをセット
+            JinroInventory().createRoleBook(gPlayer,player,gPlayer.role)
+
+            val dummyItem = DummyItem.create()
+            for (slot in 9..35) {
+                player.inventory.setItem(slot, dummyItem)
+            }
         }
     }
 
@@ -128,23 +144,19 @@ object JinroGameManager {
 
         gamePlayers.values.forEach { gPlayer ->
             val player = gPlayer.offlinePlayer.player ?: return@forEach
-
             val mainTitleComponent = Component.text("\uE000").font(role_view)
             val subTitleComponent = Component.text(gPlayer.role.role_view).font(role_view)
-
             val combinedTitle = Title.title(mainTitleComponent, subTitleComponent, times)
             player.showTitle(combinedTitle)
 
             val camp = gPlayer.role.camp
             val soundKey = net.kyori.adventure.key.Key.key(camp.soundName)
-
             val campSound = net.kyori.adventure.sound.Sound.sound(
                 soundKey,
                 net.kyori.adventure.sound.Sound.Source.MASTER,
                 1.0f,
                 1.0f
             )
-
             player.playSound(campSound)
         }
     }
@@ -153,16 +165,43 @@ object JinroGameManager {
      * ゲーム終了時、または強制停止時の完全初期化リセット
      */
     fun reset() {
+        currentPhase = JinroPhase.FIRST_DAY
+        currentDayCount = 1
+
+        val graveKey = NamespacedKey.fromString("werewolf:grave")
+        if (graveKey != null) {
+            Bukkit.getWorlds().forEach { world ->
+                world.entities.forEach { entity ->
+                    if (entity is org.bukkit.entity.Interaction || entity is org.bukkit.entity.ItemDisplay) {
+                        if (entity.persistentDataContainer.has(graveKey, PersistentDataType.STRING)) {
+                            entity.remove()
+                        }
+                    }
+                }
+            }
+        }
+        trapManager?.clearAllTraps()
+        trapManager = null
+
+        resourceManager?.clearAllResources()
+        resourceManager = null
+
         gamePlayers.clear()
         activeSpectators.clear()
         isGameRunning = false
 
-        // ─── 💡 2. ゲーム終了（リセット）時にリスナーを解除 ───
         gameListener?.let { listener ->
-            HandlerList.unregisterAll(listener) // このリスナーに紐づく全てのイベントを解除
-            gameListener = null // 参照をクリア
+            HandlerList.unregisterAll(listener)
+            gameListener = null
         }
 
+        // ─── 💡 ゲーム終了（リセット）時に資源用リスナーを確実に解除 ───
+        resourceListener?.let { listener ->
+            HandlerList.unregisterAll(listener)
+            resourceListener = null
+        }
+
+        ShopManager.clearActiveShops()
         JinroTimeManager.stopTimer()
     }
 

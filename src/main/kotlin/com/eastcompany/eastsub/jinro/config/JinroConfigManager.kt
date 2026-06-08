@@ -1,6 +1,8 @@
 package com.eastcompany.eastsub.jinro.config
 
 import com.eastcompany.eastsub.jinro.game.Role
+import org.bukkit.Bukkit
+import org.bukkit.Location
 import org.bukkit.plugin.java.JavaPlugin
 
 class JinroConfigManager(private val plugin: JavaPlugin) {
@@ -51,13 +53,29 @@ class JinroConfigManager(private val plugin: JavaPlugin) {
         // リストに登録されている全マップのデータを走査して組み立てる
         for (mapName in loadedMapList) {
             val section = mapsSection?.getConfigurationSection(mapName)
+
+            // 文字列からLocationへ変換
+            val lobby = section?.getString("lobby")?.let { parseLocation(it) }
+            val spawns = section?.getStringList("spawns")?.mapNotNull { parseLocation(it) } ?: emptyList()
+            val shops = section?.getStringList("shops")?.mapNotNull { parseLocation(it) } ?: emptyList()
+            val court = section?.getString("court")?.let { parseLocation(it) }
+            val resourceLocations = section?.getStringList("resources")?.mapNotNull { parseLocation(it) } ?: emptyList()
+
+            val flowers = section?.getStringList("resources.flowers")?.mapNotNull { parseLocation(it) } ?: emptyList()
+            val chests = section?.getStringList("resources.chests")?.mapNotNull { parseLocation(it) } ?: emptyList()
+            val irons = section?.getStringList("resources.irons")?.mapNotNull { parseLocation(it) } ?: emptyList()
+            val woods = section?.getStringList("resources.woods")?.mapNotNull { parseLocation(it) } ?: emptyList()
+
             val data = MapData(
-                lobby = section?.getString("lobby"),
-                spawns = section?.getStringList("spawns") ?: emptyList(),
-                shops = section?.getStringList("shops") ?: emptyList(),
-                court = section?.getString("court"),
+                lobby = lobby,
+                spawns = spawns,
+                shops = shops,
+                court = court,
                 undergroundY = if (section?.contains("underground-y") == true) section.getInt("underground-y") else null,
-                resourceLocations = section?.getStringList("resources") ?: emptyList()
+                resourceFlowers = flowers,
+                resourceChests = chests,
+                resourceIrons = irons,
+                resourceWoods = woods
             )
             loadedMapData[mapName] = data
         }
@@ -73,6 +91,22 @@ class JinroConfigManager(private val plugin: JavaPlugin) {
             shopPrices = pricesMap,
             mapData = loadedMapData // ⚠️ 反映
         )
+    }
+
+    fun parseLocation(locStr: String): Location? {
+        if (locStr.isBlank()) return null
+        return runCatching {
+            val parts = locStr.split(",")
+            val world = Bukkit.getWorld(parts[0]) ?: return null
+            Location(
+                world,
+                parts[1].toDouble(),
+                parts[2].toDouble(),
+                parts[3].toDouble(),
+                parts.getOrNull(4)?.toFloat() ?: 0f,
+                parts.getOrNull(5)?.toFloat() ?: 0f
+            )
+        }.getOrNull()
     }
 
     fun save() {
@@ -98,16 +132,29 @@ class JinroConfigManager(private val plugin: JavaPlugin) {
         }
 
         // --- マップ詳細データ(座標リスト)の保存処理 ⚠️追加 ---
-        config.set("maps", null) // 古いデータを初期化
+        config.set("maps", null)
         gameConfig.mapData.forEach { (mapName, data) ->
-            config.set("maps.$mapName.lobby", data.lobby)
-            config.set("maps.$mapName.spawns", data.spawns.ifEmpty { null })
-            config.set("maps.$mapName.shops", data.shops.ifEmpty { null })
-            config.set("maps.$mapName.court", data.court)
-            config.set("maps.$mapName.underground-y", data.undergroundY)
-            config.set("maps.$mapName.resources", data.resourceLocations.ifEmpty { null })
+            val path = "maps.$mapName"
+
+            config.set("$path.lobby", serializeLocation(data.lobby))
+            config.set("$path.spawns", data.spawns.mapNotNull { serializeLocation(it) }.ifEmpty { null })
+            config.set("$path.shops", data.shops.mapNotNull { serializeLocation(it) }.ifEmpty { null })
+            config.set("$path.court", serializeLocation(data.court))
+            config.set("$path.underground-y", data.undergroundY)
+
+            // 💡 種類ごとにコンフィグの階層を分けて保存
+            config.set("$path.resources.flowers", data.resourceFlowers.mapNotNull { serializeLocation(it) }.ifEmpty { null })
+            config.set("$path.resources.chests", data.resourceChests.mapNotNull { serializeLocation(it) }.ifEmpty { null })
+            config.set("$path.resources.irons", data.resourceIrons.mapNotNull { serializeLocation(it) }.ifEmpty { null })
+            config.set("$path.resources.woods", data.resourceWoods.mapNotNull { serializeLocation(it) }.ifEmpty { null })
         }
 
         plugin.saveConfig()
+    }
+
+    private fun serializeLocation(loc: Location?): String? {
+        if (loc == null) return null
+        // ワールド名,x,y,z,yaw,pitch の形式で保存
+        return "${loc.world?.name},${loc.x},${loc.y},${loc.z},${loc.yaw},${loc.pitch}"
     }
 }

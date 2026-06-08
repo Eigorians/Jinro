@@ -6,13 +6,11 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
-import org.bukkit.plugin.java.JavaPlugin
 
 class ShopChangeCommand : SubCommand {
     override val name: String = "shopchange"
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal(name)

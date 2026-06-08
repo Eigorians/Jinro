@@ -3,11 +3,10 @@ package com.eastcompany.eastsub.jinro.manager
 import com.eastcompany.eastsub.jinro.Jinro
 import com.eastcompany.eastsub.jinro.game.GamePlayer
 import com.eastcompany.eastsub.jinro.game.Role
-import org.bukkit.plugin.java.JavaPlugin
-import java.util.UUID
+import java.util.*
 
 object JinroRoleManager {
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
 
     /**
      * 現在のゲーム参加者に対して、設定に基づいた役職を配布する
@@ -29,7 +28,7 @@ object JinroRoleManager {
         if (fixedWerewolfCount > 0 && playerList.isNotEmpty()) {
             val werewolfTargets = playerList.take(fixedWerewolfCount)
             werewolfTargets.forEach { gamePlayer ->
-                assignedRolesMap[gamePlayer] = Role.WEREWOLF
+                assignedRolesMap[gamePlayer] = Role.JINRO
             }
             remainingPlayers = playerList.drop(fixedWerewolfCount)
         }
@@ -37,7 +36,7 @@ object JinroRoleManager {
         // ─── 🎲 B. 抽選箱（リスト）の作成 ───
         val roleLotteryBox = mutableListOf<Role>()
         registeredRoles.forEach { (role, count) ->
-            if (fixedWerewolfCount > 0 && role == Role.WEREWOLF) {
+            if (fixedWerewolfCount > 0 && role == Role.JINRO) {
                 return@forEach
             }
             repeat(count) {
@@ -55,7 +54,7 @@ object JinroRoleManager {
         // ─── 🟢 C. 残りのプレイヤーへ選ばれた役職を上から順番に配布 ───
         remainingPlayers.forEachIndexed { index, gamePlayer ->
             // 💡 抽出したfinalPickedRolesから配る。もし足りない（プレイヤー数が設定枠を超えた）なら「村人」
-            val assignedRole = finalPickedRoles.getOrNull(index) ?: Role.VILLAGER
+            val assignedRole = finalPickedRoles.getOrNull(index) ?: Role.MURABITO
             assignedRolesMap[gamePlayer] = assignedRole
         }
 

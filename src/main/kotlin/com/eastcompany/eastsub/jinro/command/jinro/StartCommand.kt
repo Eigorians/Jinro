@@ -1,8 +1,7 @@
 package com.eastcompany.eastsub.jinro.command.jinro
 
-import com.eastcompany.eastsub.jinro.Jinro
-import com.eastcompany.eastsub.jinro.manager.JinroMatchManager  // ✨ カウントダウンまではこっち
-import com.eastcompany.eastsub.jinro.manager.JinroGameManager   // ✨ ゲーム中の重複防止チェック用
+import com.eastcompany.eastsub.jinro.manager.JinroGameManager
+import com.eastcompany.eastsub.jinro.manager.JinroMatchManager
 import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack
@@ -13,12 +12,9 @@ import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
-import org.bukkit.plugin.java.JavaPlugin
 
 class StartCommand : SubCommand {
     override val name: String = "start"
-
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
 
     override fun register(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal(name)
@@ -56,8 +52,6 @@ class StartCommand : SubCommand {
                 JinroScoreboardManager.displayRecruitBoard()
 
                 // 全員へ送る募集チャットUIの作成
-                val title = Component.text("========= [人狼ゲーム参加募集] =========", NamedTextColor.GOLD)
-
                 val buttons = Component.text("  あなたの状態を選択してください:\n\n    ")
                     .append(Component.text("[ 🟢 参加 ]", NamedTextColor.GREEN).decoration(TextDecoration.BOLD, true)
                         .clickEvent(ClickEvent.runCommand("/jinroclick select participant")))
@@ -68,13 +62,9 @@ class StartCommand : SubCommand {
                     .append(Component.text("[ ❌ 不参加 ]", NamedTextColor.GRAY).decoration(TextDecoration.BOLD, true)
                         .clickEvent(ClickEvent.runCommand("/jinroclick select none")))
 
-                val footer = Component.text("\n===================================", NamedTextColor.GOLD)
-
                 // 全プレイヤーにアンケートを配信
                 for (onlinePlayer in Bukkit.getOnlinePlayers()) {
-                    onlinePlayer.sendMessage(title)
                     onlinePlayer.sendMessage(buttons)
-                    onlinePlayer.sendMessage(footer)
                 }
 
                 1

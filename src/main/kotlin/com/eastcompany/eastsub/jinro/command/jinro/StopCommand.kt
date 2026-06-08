@@ -1,7 +1,7 @@
 package com.eastcompany.eastsub.jinro.command.jinro
 
-import com.eastcompany.eastsub.jinro.manager.JinroMatchManager  // ✨ 戻した
-import com.eastcompany.eastsub.jinro.manager.JinroGameManager   // ✨ 併用
+import com.eastcompany.eastsub.jinro.manager.JinroGameManager
+import com.eastcompany.eastsub.jinro.manager.JinroMatchManager
 import com.eastcompany.eastsub.jinro.manager.JinroScoreboardManager
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import io.papermc.paper.command.brigadier.CommandSourceStack

@@ -9,14 +9,12 @@ import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
-import org.bukkit.Location
 import org.bukkit.Sound
-import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitRunnable
-import java.util.UUID
+import java.util.*
 
 object JinroMatchManager {
-    private val plugin = JavaPlugin.getPlugin(Jinro::class.java)
+    private val plugin: Jinro get() = Jinro.instance
     private var countdownTask: BukkitRunnable? = null
     private var activeBossBar: BossBar? = null
 
@@ -48,7 +46,7 @@ object JinroMatchManager {
         // ─── 🛡️ マップロケーションの完全性チェック ───
         if (mapData == null || !isMapDataValid(mapData)) {
             val host = hostUniqueId?.let { Bukkit.getPlayer(it) }
-            val errorMsg = Component.text("❌ マップ「$selectedMapName」の設定（ロビー、スポーン、ショップ、裁判所）が不完全なため、ゲームを開始できません。", NamedTextColor.RED)
+            val errorMsg = Component.text("❌ マップ「$selectedMapName」の設定（ロビー、スポーン、ショップ、裁判所）が不完全なため、ゲームを開始できません。", NamedTextColor.WHITE)
 
             host?.sendMessage(errorMsg) ?: Bukkit.broadcast(errorMsg)
             return
@@ -60,7 +58,7 @@ object JinroMatchManager {
         clearBossBar()
 
         // ─── 🚀 プレイヤーをロビーへ即座にテレポート ───
-        val lobbyLocation = parseLocation(mapData.lobby!!)
+        val lobbyLocation = mapData.lobby
         if (lobbyLocation != null) {
             (participants + spectators).forEach { uuid ->
                 Bukkit.getPlayer(uuid)?.teleport(lobbyLocation)
@@ -71,11 +69,11 @@ object JinroMatchManager {
         broadcastMessage(Component.text("まもなくゲームが開始されます！ (残り 15 秒)", NamedTextColor.GREEN))
 
         // ボスバーを作成して表示
-        val initialBarTitle = Component.text("ゲーム開始まであと ", NamedTextColor.YELLOW)
-            .append(Component.text("15", NamedTextColor.RED, TextDecoration.BOLD))
-            .append(Component.text(" 秒", NamedTextColor.YELLOW))
+        val initialBarTitle = Component.text("ゲーム開始まであと ", NamedTextColor.WHITE)
+            .append(Component.text("15", NamedTextColor.WHITE, TextDecoration.BOLD))
+            .append(Component.text(" 秒", NamedTextColor.WHITE))
 
-        val bossBar = BossBar.bossBar(initialBarTitle, 1.0f, BossBar.Color.RED, BossBar.Overlay.PROGRESS)
+        val bossBar = BossBar.bossBar(initialBarTitle, 1.0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS)
         activeBossBar = bossBar
 
         for (player in Bukkit.getOnlinePlayers()) {
@@ -86,8 +84,8 @@ object JinroMatchManager {
 
         // ─── ⏳ 15秒カウントダウンタスク開始 ───
         countdownTask = object : BukkitRunnable() {
-            var timeLeft = 15
-            val maxTime = 15.0f
+            var timeLeft = 3
+            val maxTime = 3.0f
 
             override fun run() {
                 timeLeft--
@@ -97,9 +95,9 @@ object JinroMatchManager {
                     val progress = (timeLeft.toFloat() / maxTime).coerceIn(0.0f, 1.0f)
                     bar.progress(progress)
                     bar.name(
-                        Component.text("ゲーム開始まであと ", NamedTextColor.YELLOW)
-                            .append(Component.text(timeLeft, NamedTextColor.RED, TextDecoration.BOLD))
-                            .append(Component.text(" 秒", NamedTextColor.YELLOW))
+                        Component.text("ゲーム開始まであと ", NamedTextColor.WHITE)
+                            .append(Component.text(timeLeft, NamedTextColor.WHITE, TextDecoration.BOLD))
+                            .append(Component.text(" 秒", NamedTextColor.WHITE))
                     )
                 }
 
@@ -134,25 +132,10 @@ object JinroMatchManager {
     }
 
     private fun isMapDataValid(data: MapData): Boolean {
-        return !data.lobby.isNullOrBlank() &&
+        return data.lobby != null &&
                 data.spawns.isNotEmpty() &&
                 data.shops.isNotEmpty() &&
-                !data.court.isNullOrBlank()
-    }
-
-    private fun parseLocation(locStr: String): Location? {
-        return runCatching {
-            val parts = locStr.split(",")
-            val world = Bukkit.getWorld(parts[0]) ?: return null
-            Location(
-                world,
-                parts[1].toDouble(),
-                parts[2].toDouble(),
-                parts[3].toDouble(),
-                parts.getOrNull(4)?.toFloat() ?: 0f,
-                parts.getOrNull(5)?.toFloat() ?: 0f
-            )
-        }.getOrNull()
+                data.court != null
     }
 
     private fun sendCountdownTitle(character: String) {

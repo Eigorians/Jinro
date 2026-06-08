@@ -1,14 +1,14 @@
 package com.eastcompany.eastsub.jinro.listener.task
 
 import com.eastcompany.eastsub.jinro.Jinro
-import org.bukkit.Bukkit
-import org.bukkit.Color
-import org.bukkit.Location
-import org.bukkit.Material
-import org.bukkit.NamespacedKey
+import com.eastcompany.eastsub.jinro.constant.JinroKeys
+import net.kyori.adventure.text.Component
+import org.bukkit.*
 import org.bukkit.entity.ArmorStand
 import org.bukkit.entity.BlockDisplay
+import org.bukkit.entity.Display
 import org.bukkit.entity.Entity
+import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -17,7 +17,10 @@ import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.scheduler.BukkitRunnable
-import java.util.UUID
+import org.bukkit.util.Transformation
+import org.joml.Quaternionf
+import org.joml.Vector3f
+import java.util.*
 
 class ToolParticleTask(private val plugin: Jinro) : BukkitRunnable(), Listener {
 
@@ -59,20 +62,30 @@ class ToolParticleTask(private val plugin: Jinro) : BukkitRunnable(), Listener {
 
             when (item.type) {
                 Material.WHITE_WOOL -> {
-                    stringToLoc(mapData.lobby)?.let { requiredElements.add(Triple(it, Material.WHITE_WOOL, true)) }
+                    mapData.lobby?.let { loc -> requiredElements.add(Triple(loc, Material.WHITE_WOOL, true)) }
                 }
                 Material.BLAZE_ROD -> {
-                    mapData.spawns.forEach { str -> stringToLoc(str)?.let { requiredElements.add(Triple(it, Material.ORANGE_WOOL, true)) } }
+                    mapData.spawns.forEach { loc -> requiredElements.add(Triple(loc, Material.ORANGE_WOOL, true)) }
                 }
                 Material.EMERALD -> {
-                    mapData.shops.forEach { str -> stringToLoc(str)?.let { requiredElements.add(Triple(it, Material.EMERALD_BLOCK, true)) } }
+                    mapData.shops.forEach { loc -> requiredElements.add(Triple(loc, Material.EMERALD_BLOCK, true)) }
                 }
                 Material.IRON_SWORD -> {
-                    mapData.court?.let { str -> stringToLoc(str)?.let { requiredElements.add(Triple(it, Material.IRON_BLOCK, true)) } }
+                    mapData.court?.let { loc -> requiredElements.add(Triple(loc, Material.IRON_BLOCK, true)) }
                 }
-                Material.IRON_PICKAXE -> {
-                    // 鉄ピッケル（復活資源）の時は、サバイバルでも見えるGLASS（またはRED_STAINED_GLASS等）にするのがお勧め
-                    mapData.resourceLocations.forEach { str -> stringToLoc(str)?.let { requiredElements.add(Triple(it, Material.GLASS, false)) } }
+
+                // 💡 各資源ツールごとに、表示させたいブロックの見た目を指定
+                Material.POPPY -> {
+                    mapData.resourceFlowers.forEach { loc -> requiredElements.add(Triple(loc, Material.POPPY, false)) }
+                }
+                Material.CHEST -> {
+                    mapData.resourceChests.forEach { loc -> requiredElements.add(Triple(loc, Material.CHEST, false)) }
+                }
+                Material.IRON_ORE -> {
+                    mapData.resourceIrons.forEach { loc -> requiredElements.add(Triple(loc, Material.IRON_ORE, false)) }
+                }
+                Material.OAK_LOG -> {
+                    mapData.resourceWoods.forEach { loc -> requiredElements.add(Triple(loc, Material.OAK_LOG, false)) }
                 }
                 else -> {
                     clearPlayerDisplays(player)
@@ -89,39 +102,53 @@ class ToolParticleTask(private val plugin: Jinro) : BukkitRunnable(), Listener {
                 if (loc.world != player.world) continue
 
                 val spawnedEntity: Entity = if (isArmorStand) {
-                    // === 本来の ArmorStand の生成処理 ===
-                    // 座標の微調整（頭の位置にブロックを合わせるための Y+0.0 か Y-1.45 は環境に合わせて調整してください）
-                    val spawnLoc = Location(loc.world, loc.blockX + 0.5, loc.blockY.toDouble(), loc.blockZ + 0.5 , loc.yaw, loc.pitch)
 
-                    loc.world.spawn(spawnLoc, ArmorStand::class.java) { stand ->
+                    loc.world.spawn(loc, ArmorStand::class.java) { stand ->
                         stand.setGravity(false)
                         stand.isMarker = true
                         stand.isGlowing = true
                         stand.equipment.helmet = ItemStack(material)
                         stand.equipment.setItemInMainHand(ItemStack(material))
-                        stand.setVisibleByDefault(false)
                         player.showEntity(plugin, stand)
                     }
                 } else {
-                    // === 本来の BlockDisplay の生成処理（鉄ピッケル専用など） ===
-                    val spawnLoc = Location(loc.world, loc.blockX.toDouble(), loc.blockY.toDouble(), loc.blockZ.toDouble())
 
-                    loc.world.spawn(spawnLoc, BlockDisplay::class.java) { blockDisplay ->
-                        blockDisplay.block = Bukkit.createBlockData(material)
-                        blockDisplay.isGlowing = true
-                        blockDisplay.glowColorOverride = Color.fromRGB(0, 255, 0) // 緑色発光
-
-                        // サイズをちょっと大きくする(1.1倍)
-                        val transformation = blockDisplay.transformation
-                        transformation.scale.set(1.1f, 1.1f, 1.1f)
-
-                        // 中心がズレるのを防ぐための微調整
-                        transformation.translation.set(-0.055f, -0.055f, -0.055f)
-
-                        blockDisplay.transformation = transformation
-                        blockDisplay.setVisibleByDefault(false)
-                        player.showEntity(plugin, blockDisplay)
+                    val spawnLoc = loc.clone().apply {
+                        // align xyz (~0.5 ~500.5 ~0.5) の再現
+                        x = blockX + 0.5
+                        y = blockY + 500.5
+                        z = blockZ + 0.5
                     }
+
+                    spawnLoc.world.spawn(spawnLoc, ItemDisplay::class.java) { itemDisplay ->
+                        // 1. アイテムメタの設定 (1.21.4以降の itemModel に対応)
+                        val item = ItemStack(material).apply {
+                            itemMeta = itemMeta?.apply {
+                                NamespacedKey.fromString("minecraft:select_block")?.let { modelKey ->
+                                    this.itemModel = modelKey
+                                }
+                            }
+                        }
+                        itemDisplay.setItemStack(item)
+
+                        itemDisplay.viewRange = 10.0f // view_range:10f
+
+                        itemDisplay.brightness = Display.Brightness(10,10)
+
+                        // 4. トランスフォーメーションの設定
+                        // y軸を「-499.999f」して元の位置(地表付近)に見えるようにオフセット
+                        val translation = Vector3f(0.0f, -499.999f, 0.0f)
+                        val leftRotation = Quaternionf(0.0f, 0.0f, 0.0f, 1.0f)
+                        val rightRotation = Quaternionf(0.0f, 0.0f, 0.0f, 1.0f)
+                        val scale = Vector3f(1.0f, 1.0f, 1.0f)
+
+                        itemDisplay.transformation = Transformation(translation, leftRotation, scale, rightRotation)
+
+                        // 5. 特定のプレイヤーにのみ表示
+                        itemDisplay.setVisibleByDefault(false)
+                        player.showEntity(plugin, itemDisplay)
+                    }
+
                 }
                 newEntities.add(spawnedEntity)
             }
@@ -153,14 +180,6 @@ class ToolParticleTask(private val plugin: Jinro) : BukkitRunnable(), Listener {
         if (item == null || !item.hasItemMeta()) return null
         val key = NamespacedKey(plugin, "tool_map_name")
         return item.itemMeta.persistentDataContainer.get(key, PersistentDataType.STRING)
-    }
-
-    private fun stringToLoc(str: String?): Location? {
-        if (str == null) return null
-        val parts = str.split(",")
-        if (parts.size < 6) return null
-        val world = Bukkit.getWorld(parts[0]) ?: return null
-        return Location(world, parts[1].toDouble(), parts[2].toDouble(), parts[3].toDouble(), parts[4].toFloat(), parts[5].toFloat())
     }
 
     fun clearAll() {

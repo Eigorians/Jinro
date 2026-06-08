@@ -37,10 +37,15 @@ data class JinroGameConfig(
  * 1つのマップ内に紐づくツール座標のデータ構造 (String型で座標を保持)
  */
 data class MapData(
-    var lobby: String? = null,                   // ロビー（1箇所）
-    var spawns: List<String> = emptyList(),      // スポーン位置（複数）
-    var shops: List<String> = emptyList(),       // ショップ位置（複数）
-    var court: String? = null,                   // 裁判所（1箇所）
-    var undergroundY: Int? = null,               // 地下範囲のY座標
-    var resourceLocations: List<String> = emptyList() // 復活資源ブロック（複数）
+    var lobby: org.bukkit.Location? = null,
+    var spawns: List<org.bukkit.Location> = emptyList(),
+    var shops: List<org.bukkit.Location> = emptyList(),
+    var court: org.bukkit.Location? = null,
+    var undergroundY: Int? = null,
+
+    // 💡 4つの資源ごとにリストを分離
+    var resourceFlowers: List<org.bukkit.Location> = emptyList(),
+    var resourceChests: List<org.bukkit.Location> = emptyList(),
+    var resourceIrons: List<org.bukkit.Location> = emptyList(),
+    var resourceWoods: List<org.bukkit.Location> = emptyList()
 )
